@@ -2,6 +2,9 @@ import PySimpleGUI as sg
 
 
 class CustomTab(sg.Tab):
+    def start(self):
+        pass
+
     @property
     def callbacks(self):
         return {}

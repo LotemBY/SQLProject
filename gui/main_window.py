@@ -2,7 +2,6 @@ import enum
 
 import PySimpleGUI as sg
 
-import book_parser
 import db_manager
 from gui.custom_tab import CustomTab
 from gui.insert_book_tab import InsertBookTab
@@ -28,16 +27,19 @@ class BookGUI:
         self.window.Layout([[self.tabs]])
         self.window.finalize()
 
-        book_parser.insert_book_to_db(self.db,
-                                      "Book",
-                                      "Unknown",
-                                      r"C:\Users\Lotem\Desktop\sql\example_book2.txt")
+        self.db.insert_book_to_db("Book",
+                                  "Unknown",
+                                  r"C:\Users\Lotem\Desktop\sql\example_book2.txt")
         self.insert_book_tab.update_books_table()
 
     def start(self):
+        for row in self.tabs.Rows:
+            for tab in row:
+                tab.start()
+
         while True:
             event, values = self.window.read()
-            print(event, values)
+            print(event)
 
             if event is None:
                 break

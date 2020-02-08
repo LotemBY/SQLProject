@@ -1,9 +1,4 @@
-import os
 import re
-import time
-from sqlite3 import IntegrityError
-
-from db_manager import BookDatabase
 
 WORD_REGEX = r"(^|\W|'|\")(\w+([\w']*\w+)?)"
 
@@ -75,31 +70,3 @@ def parse_book(path):
 
                 # Add the length of the line to the total offset counter
                 sentence_offset_in_line += len(sentence) + 1
-
-
-def insert_book_to_db(db: BookDatabase, title, author, path):
-    if not os.path.exists(path):
-        raise FileNotFoundError
-
-    # TODO: Copy the file to my own dir?
-
-    try:
-        db.insert_book(title, author, path, time.time())
-    except IntegrityError:
-        return False
-
-    for word in parse_book(path):
-        (word, word_index, paragraph_index, line_index, index_in_line, offset_in_line, sentence_index,
-         index_in_sentence) = word
-        db.insert_word(word)
-        db.insert_word_appearance(word_index,
-                                  title,
-                                  word,
-                                  paragraph_index,
-                                  line_index,
-                                  index_in_line,
-                                  offset_in_line,
-                                  sentence_index,
-                                  index_in_sentence)
-
-    return True

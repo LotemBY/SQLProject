@@ -1,11 +1,10 @@
-import os
 import re
 from enum import Enum, auto
 from os.path import splitext, split
+from subprocess import Popen
 
 import PySimpleGUI as sg
 
-import book_parser
 from gui.custom_tab import CustomTab
 
 
@@ -52,7 +51,7 @@ class InsertBookTab(CustomTab):
                                     headings=["Book ID", "Title", "Author", "Path"],
                                     num_rows=10,
                                     justification=sg.TEXT_LOCATION_LEFT,
-                                    col_widths=[0, 15, 15, 35],
+                                    col_widths=[0, 20, 20, 40],
                                     auto_size_columns=False,
                                     enable_events=True,
                                     visible_column_map=[False, True, True, True],
@@ -110,10 +109,9 @@ class InsertBookTab(CustomTab):
 
     def confirm(self):
         try:
-            if book_parser.insert_book_to_db(self.db,
-                                             self.title_input.get(),
-                                             self.author_input.get(),
-                                             self.file_input.get()):
+            if self.db.insert_book_to_db(self.title_input.get(),
+                                         self.author_input.get(),
+                                         self.file_input.get()):
                 self.update_books_table()
                 self.file_input.Update("")
                 self.title_input.Update("")
@@ -125,14 +123,15 @@ class InsertBookTab(CustomTab):
             self.response_text.Update("Failed to open the file.")
 
     def update_books_table(self):
-        self.books_table.Update(values=self.db.new_cursor().execute("SELECT book_id, title, author, file_path FROM book").fetchall())
+        self.books_table.Update(
+            values=self.db.new_cursor().execute("SELECT book_id, title, author, file_path FROM book").fetchall())
 
     def open_book_file(self):
         if self.books_table.SelectedRows:
             selected_book_row = self.books_table.SelectedRows[0]
             if selected_book_row < len(self.books_table.Values):
                 selected_book_path = self.books_table.Values[selected_book_row][3]
-                os.system(f'"{selected_book_path}" &')
+                Popen(f'"{selected_book_path}"', shell=True)
 
     def select_book(self):
         if self.books_table.SelectedRows:
