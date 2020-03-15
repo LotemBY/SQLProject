@@ -19,11 +19,36 @@ class Database:
     SCRIPTS_DIR = r"scripts"
 
     def __init__(self, db_path=None, always_create=False):
-        if always_create and db_path and os.path.exists(db_path):
-            os.remove(db_path)
+        self._conn = None  # type: sqlite3.Connection
+        self._cursor = None  # type: sqlite3.Cursor
+        self.new_connection(always_create, db_path)
+
+    def save_to_file(self, db_path, switch_to_new=False):
+        disk_conn = sqlite3.connect(db_path)
+        self.commit()
+        self._conn.backup(disk_conn)
+
+        if switch_to_new:
+            self.close(commit=False)
+            self._conn = disk_conn
+            self._cursor = self._conn.cursor()
+
+    def new_connection(self, always_create=True, db_path=None, commit=True):
+        if self._conn:
+            self.close(commit=commit)
+
+        if db_path:
+            already_exists = os.path.exists(db_path)
+            if always_create and already_exists:
+                os.remove(db_path)
+        else:
+            already_exists = False
 
         self._conn = sqlite3.connect(db_path if db_path else ':memory:')
         self._cursor = self._conn.cursor()
+
+        # Return if a new db was created
+        return already_exists and not always_create
 
     @raise_specific_exception_wrapper
     def execute(self, *args, **kwargs):

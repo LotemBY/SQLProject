@@ -1,69 +1,70 @@
-create table if not exists book (
-    book_id integer not null primary key,
-    title text not null,
-    author text not null,
-    file_path text not null unique,
---    creation_date date,
-    unique(title, author),
-    check(title <> ''),
-    check(author <> ''),
-    check(file_path <> '')
+CREATE TABLE IF NOT EXISTS book (
+    book_id INTEGER NOT NULL PRIMARY KEY,
+    title TEXT NOT NULL,
+    author TEXT NOT NULL,
+    file_path TEXT NOT NULL UNIQUE,
+    creation_date date,
+    UNIQUE(title, author),
+    CHECK(title <> ''),
+    CHECK(author <> ''),
+    CHECK(file_path <> '')
 );
 
-create table if not exists word (
-    word_id integer not null primary key,
-    name text not null unique,
-    length integer default 0,
-    check(name <> '')
+CREATE TABLE IF NOT EXISTS word (
+    word_id INTEGER NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    length INTEGER DEFAULT 0,
+    CHECK(name <> '')
 );
 
-create trigger if not exists word_length_insertion
-   after insert
-   on word
-   for each row
-begin
-   update word set length = length(name) where word_id = NEW.word_id;
-end;
+CREATE TRIGGER IF NOT EXISTS word_length_insertion
+   AFTER INSERT
+   ON word
+   FOR EACH ROW
+BEGIN
+   UPDATE word SET length = LENGTH(name) WHERE word_id = new.word_id;
+END;
 
-create table if not exists word_appearance (
-    word_index integer not null,
-    book_id integer not null,
-    word_id integer not null,
-    paragraph integer not null,
-    line integer not null,
-    line_index integer not null,
-    line_offset integer not null,
-    sentence integer not null,
-    sentence_index integer not null,
-    primary key(word_index, book_id, word_id),
-    foreign key(book_id) references book,
-    foreign key(word_id) references word
+CREATE TABLE IF NOT EXISTS word_appearance (
+    word_index INTEGER NOT NULL,
+    book_id INTEGER NOT NULL,
+    word_id INTEGER NOT NULL,
+    paragraph INTEGER NOT NULL,
+    line INTEGER NOT NULL,
+    line_index INTEGER NOT NULL,
+    line_offset INTEGER NOT NULL,
+    sentence INTEGER NOT NULL,
+    sentence_index INTEGER NOT NULL,
+    PRIMARY KEY(word_index, book_id, word_id),
+    FOREIGN KEY(book_id) REFERENCES book,
+    FOREIGN KEY(word_id) REFERENCES word
 );
 
-create table if not exists words_group (
-    group_id integer not null primary key,
-    name text not null unique,
-    check(name <> '')
+CREATE TABLE IF NOT EXISTS words_group (
+    group_id INTEGER NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    CHECK(name <> '')
 );
 
-create table if not exists word_in_group (
-    group_id integer not null,
-    word_id integer not null,
-    primary key(group_id, word_id),
-    foreign key(group_id) references words_group,
-    foreign key(word_id) references word
+CREATE TABLE IF NOT EXISTS word_in_group (
+    group_id INTEGER NOT NULL,
+    word_id INTEGER NOT NULL,
+    PRIMARY KEY(group_id, word_id),
+    FOREIGN KEY(group_id) REFERENCES words_group,
+    FOREIGN KEY(word_id) REFERENCES word
 );
 
-create table if not exists phrase (
-    phrase_id integer not null primary key,
-    words_count integer not null CHECK(words_count > 1)
+CREATE TABLE IF NOT EXISTS phrase (
+    phrase_id INTEGER NOT NULL PRIMARY KEY,
+    phrase_text TEXT NOT NULL,
+    words_count INTEGER NOT NULL CHECK(words_count > 1)
 );
 
-create table if not exists word_in_phrase (
-    phrase_id integer not null,
-    word_id integer not null,
-    phrase_index integer not null,
-    primary key(phrase_id, word_id, phrase_index),
-    foreign key(phrase_id) references phrase,
-    foreign key(word_id) references word
+CREATE TABLE IF NOT EXISTS word_in_phrase (
+    phrase_id INTEGER NOT NULL,
+    word_id INTEGER NOT NULL,
+    phrase_index INTEGER NOT NULL,
+    PRIMARY KEY(phrase_id, word_id, phrase_index),
+    FOREIGN KEY(phrase_id) REFERENCES phrase,
+    FOREIGN KEY(word_id) REFERENCES word
 );

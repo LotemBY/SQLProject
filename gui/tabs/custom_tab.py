@@ -6,11 +6,13 @@ from db.books_db import BookDatabase
 
 class CustomTab(sg.Tab):
     def __init__(self, db, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ElementJustification = sgh.CENTER
+        super().__init__(element_justification=sgh.CENTER, *args, **kwargs)
         self.db = db  # type: BookDatabase
 
     def initialize(self):
+        pass
+
+    def reload_from_db(self):
         pass
 
     @property

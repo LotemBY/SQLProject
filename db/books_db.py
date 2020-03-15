@@ -1,15 +1,16 @@
 import functools
 import os
 import re
-import sqlite3
 import time
+from datetime import datetime
+from threading import Thread
 
 import db.sql_queries as queries
 from db.db_manager import Database
-from db.exceptions import CheckError, raise_specific_exception
+from db.exceptions import CheckError
 from db.query_builder import build_query
 from utils.book_parser import parse_book
-from utils.global_constants import VALID_WORD_REGEX
+from utils.global_constants import VALID_WORD_REGEX, VALID_WORD_LETTERS, DATE_FORMAT
 
 
 class BookDatabase(Database):
@@ -23,13 +24,19 @@ class BookDatabase(Database):
 
     def __init__(self, **kargs):
         super().__init__(**kargs)
-        self._initialize_schema()
         self.book_insert_callbacks = []
         self.group_insert_callbacks = []
         self.group_word_insert_callbacks = []
+        self.phrase_insert_callbacks = []
 
     def _initialize_schema(self):
         self.run_sql_file(BookDatabase.SCRIPTS.INITIALIZE_SCHEMA, multiple_statements=True)
+
+    def new_connection(self, always_create=False, db_path=None, commit=True):
+        if not super().new_connection(always_create, db_path, commit):
+            # Only if a new connection was created
+            self._initialize_schema()
+        self.get_word_id.cache_clear()
 
     def add_book_insert_callback(self, callback):
         self.book_insert_callbacks.append(callback)
@@ -40,10 +47,14 @@ class BookDatabase(Database):
     def add_group_word_insert_callback(self, callback):
         self.group_word_insert_callbacks.append(callback)
 
+    def add_phrase_insert_callback(self, callback):
+        self.phrase_insert_callbacks.append(callback)
+
     @staticmethod
     def call_all_callbacks(callbacks, *args):
         for callback in callbacks:
-            callback(*args)
+            # TODO: this doesnt work
+            Thread(callback(*args)).start()
 
     @staticmethod
     def assert_valid_word(word):
@@ -71,9 +82,9 @@ class BookDatabase(Database):
         return title
 
     # TODO: remove time or not?
-    def insert_book(self, title, author, path, _time):
+    def insert_book(self, title, author, path, date):
         return self.execute(queries.INSERT_BOOK,
-                            (self.to_title(title), self.to_title(author), path)).lastrowid  # , time))
+                            (self.to_title(title), self.to_title(author), path, date)).lastrowid  # , time))
 
     def insert_word(self, word):
         return self.execute(queries.INSERT_WORD, (self.to_single_word(word),)).lastrowid
@@ -117,27 +128,29 @@ class BookDatabase(Database):
         self.call_all_callbacks(self.group_word_insert_callbacks, group_id)
         return rowid
 
-    def insert_phrase(self, words_count):
-        phrase_id = self.execute(queries.INSERT_PHRASE, (words_count,)).lastrowid
-        # self.call_all_callbacks(self.phrase_insert_callbacks)am
+    def insert_phrase(self, phrase, words_count):
+        phrase_id = self.execute(queries.INSERT_PHRASE, (phrase, words_count,)).lastrowid
+        # self.call_all_callbacks(self.phrase_insert_callbacks)
         return phrase_id
 
     def insert_word_to_phrase(self, phrase_id, word, phrase_index):
         self.execute(queries.INSERT_WORD_TO_PHRASE, (phrase_id, self.get_word_id(word), phrase_index))
 
-    def create_phrase(self, words):
-        phrase_id = self.insert_phrase(len(words))
+    def create_phrase(self, phrase):
+        words = re.findall(rf"\b{VALID_WORD_LETTERS}+\b", phrase)
+        phrase_id = self.insert_phrase(phrase, len(words))
         for index, word in enumerate(words, start=1):
             self.insert_word_to_phrase(phrase_id, word, index)
 
+        self.call_all_callbacks(self.phrase_insert_callbacks)
         return phrase_id
 
-    def insert_book_to_db(self, title, author, path):
+    def insert_book_to_db(self, title, author, path, date):
         if not os.path.exists(path):
             raise FileNotFoundError
 
         # TODO: Copy the file to my own dir?
-        book_id = self.insert_book(title, author, path, time.time())
+        book_id = self.insert_book(title, author, path, date)
 
         for word_appearance in parse_book(path):
             (word,
@@ -169,7 +182,7 @@ class BookDatabase(Database):
     def search_books(self, tables=None, **kwargs):
         tables = set(tables) if tables else set()
         tables.add("book")
-        return self.build_and_exec_query(cols=["book_id", "title", "author", "file_path"],
+        return self.build_and_exec_query(cols=["book_id", "title", "author", "file_path", "creation_date"],
                                          tables=tables,
                                          group_by="book_id",
                                          **kwargs)
@@ -177,18 +190,36 @@ class BookDatabase(Database):
     def search_word_appearances(self, cols=None, tables=None, unique_words=False, order_by=None, **kwargs):
         tables = set(tables) if tables else set()
         tables.add("word_appearance")
-        group_by = "word_id" if unique_words else None
+
+        if unique_words:
+            kwargs["group_by"] = "word_id"
+
         return self.build_and_exec_query(cols=cols,
                                          tables=tables,
-                                         group_by=group_by,
                                          order_by=order_by,
                                          **kwargs)
+
+    def word_location_to_offset(self, book_id, sentence, sentence_index, word_end_offset=False):
+        query = queries.WORD_LOCATION_TO_END_OFFSET if word_end_offset else queries.WORD_LOCATION_TO_OFFSET
+        return self.execute(query, (book_id, sentence, sentence_index)).fetchone()
+
+    def all_words(self):
+        return self.execute(queries.ALL_WORDS).fetchall()
 
     def all_books(self):
         return self.execute(queries.ALL_BOOKS).fetchall()
 
+    def get_book_title(self, book_id):
+        return self.execute(queries.BOOK_ID_TO_TITLE, (book_id,)).fetchone()
+
+    def get_book_full_name(self, book_id):
+        return self.execute(queries.BOOK_ID_TO_FULL_NAME, (book_id,)).fetchone()
+
     def get_book_path(self, book_id):
         return self.execute(queries.BOOK_ID_TO_PATH, (book_id,)).fetchone()
+
+    def all_book_words(self, book_id):
+        return iter(self.execute(queries.ALL_BOOK_WORDS, (book_id,)))
 
     def all_groups(self):
         return self.execute(queries.ALL_GROUPS).fetchall()
@@ -196,9 +227,11 @@ class BookDatabase(Database):
     def words_in_group(self, group_id):
         return self.execute(queries.ALL_WORDS_IN_GROUP, (group_id,)).fetchall()
 
-    def get_word_in_phrase(self, phrase_id, phrase_index):
-        return self.execute("SELECT word_id FROM word_in_phrase WHERE phrase_id = ? AND phrase_index = ?",
-                            (phrase_id, phrase_index)).fetchone()
+    def all_phrases(self):
+        return self.execute(queries.ALL_PHRASES).fetchall()
 
-    def find_phrase(self, book_id, phrase_id):
-        return self.run_sql_file(BookDatabase.SCRIPTS.SEARCH_PHRASE, (book_id, phrase_id)).fetchall()
+    def words_in_phrase(self, phrase_id):
+        return self.execute(queries.ALL_WORDS_IN_PHRASE, (phrase_id,)).fetchall()
+
+    def find_phrase(self, phrase_id):
+        return self.run_sql_file(BookDatabase.SCRIPTS.SEARCH_PHRASE, (phrase_id,)).fetchall()

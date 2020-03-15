@@ -1,15 +1,14 @@
 from enum import Enum, auto
 from threading import Timer
-from tkinter.scrolledtext import ScrolledText
 
 import PySimpleGUI as sg
 
 import gui.simple_gui_helper as sgh
-from gui.custom_tab import CustomTab
-from utils.utils import cached_read
+from gui.book_context_manager import BookContextManager
+from gui.tabs.custom_tab import CustomTab
 
 
-class WordAppearanceTab(CustomTab):
+class WordTab(CustomTab):
     WORDS_SORT_OPTIONS = {
         "Alphabet": "name",
         "Appearances": "COUNT(word_index)",
@@ -43,19 +42,18 @@ class WordAppearanceTab(CustomTab):
         self.db.add_book_insert_callback(self.update_book_dropdown)
         self.db.add_group_insert_callback(self.update_group_dropdown)
         self.db.add_group_word_insert_callback(self.group_word_insertion_callback)
-        sg.SetOptions(input_text_color=sgh.get_theme_field("TEXT_INPUT"))
+        sg.SetOptions(input_text_color=sgh.get_theme_field("TEXT_INPUT"))  # For the color of the words list
 
         self.curr_words_order = \
-            WordAppearanceTab.WORDS_SORT_OPTIONS[WordAppearanceTab.DEFAULT_WORDS_SORT_ORDER]
+            WordTab.WORDS_SORT_OPTIONS[WordTab.DEFAULT_WORDS_SORT_ORDER]
         self.curr_words_direction = \
-            WordAppearanceTab.WORDS_SORT_DIRECTION[WordAppearanceTab.DEFAULT_WORDS_SORT_DIRECTION]
+            WordTab.WORDS_SORT_DIRECTION[WordTab.DEFAULT_WORDS_SORT_DIRECTION]
 
         self.update_filter_timer = None
         self.old_word_appearance_filters = None
 
         self.words_list = []
         self.book_names_to_id = {}
-        self.book_id_to_title_and_full_name = {}
         self.group_name_to_id = {"All": "%"}
         self.curr_showed_book = None
         self.selected_word_id = None
@@ -63,54 +61,58 @@ class WordAppearanceTab(CustomTab):
         self.words_filters = {}
         self.word_appearance_filters = {}
 
-        self.Layout([
+        self.layout([
             [self._create_filter_frame()],
             [self._create_word_list_column(), self._create_word_preview_column()]
         ])
 
     def _create_filter_frame(self):
+        self.letters_filter_input = sg.InputText(
+            default_text="",
+            size=(30, 1),
+            pad=(0, 1),
+            enable_events=True,
+            text_color=sgh.INPUT_COLOR,
+            key=WordTab.KEYS.SCHEDULE_UPDATE_FILTER
+        )
+
         self.book_filter_dropdown = sg.Combo(
             values=["All"],
             default_value="All",
-            size=(20, 1),
+            size=(35, 1),
+            pad=(0, 1),
             enable_events=True,
             readonly=True,
             text_color=sgh.DROP_DOWN_TEXT_COLOR,
-            font=(None, 12),
+            font=sgh.SMALL_FONT_SIZE,
             background_color=sgh.NO_BG,
-            key=WordAppearanceTab.KEYS.UPDATE_FILTER
+            key=WordTab.KEYS.UPDATE_FILTER
         )
 
         self.group_filter_dropdown = sg.Combo(
             values=["None", "All"],
             default_value="None",
-            size=(20, 1),
+            size=(35, 1),
+            pad=(0, 1),
             enable_events=True,
             readonly=True,
             text_color=sgh.DROP_DOWN_TEXT_COLOR,
-            font=(None, 12),
+            font=sgh.SMALL_FONT_SIZE,
             background_color=sgh.NO_BG,
-            key=WordAppearanceTab.KEYS.UPDATE_FILTER
+            key=WordTab.KEYS.UPDATE_FILTER
         )
 
-        self.letters_filter_input = sg.InputText(
-            default_text="",
-            size=(21, 1),
-            enable_events=True,
-            text_color=sgh.INPUT_COLOR,
-            key=WordAppearanceTab.KEYS.SCHEDULE_UPDATE_FILTER
-        )
-
-        info_button = sg.Help("?", size=(2, 1), key=WordAppearanceTab.KEYS.REGEX_HELP)
+        info_button = sg.Help("?", size=(3, 1), pad=(10, 1), key=WordTab.KEYS.REGEX_HELP)
 
         def _create_int_input():
             return sg.InputText(
                 default_text="",
-                size=(10, 1),
+                size=(17, 1),
+                pad=(0, 1),
                 enable_events=True,
                 background_color=sgh.THEME["INPUT"],
                 text_color=sgh.INPUT_COLOR,
-                key=WordAppearanceTab.KEYS.SCHEDULE_UPDATE_FILTER
+                key=WordTab.KEYS.SCHEDULE_UPDATE_FILTER
             )
 
         line_filter = _create_int_input()
@@ -167,26 +169,28 @@ class WordAppearanceTab(CustomTab):
 
     def _create_word_list_column(self):
         self.words_order_dropdown = sg.Combo(
-            values=list(WordAppearanceTab.WORDS_SORT_OPTIONS.keys()),
-            default_value=WordAppearanceTab.DEFAULT_WORDS_SORT_ORDER,
+            values=list(WordTab.WORDS_SORT_OPTIONS.keys()),
+            default_value=WordTab.DEFAULT_WORDS_SORT_ORDER,
             size=(11, 1),
             text_color=sgh.DROP_DOWN_TEXT_COLOR,
             enable_events=True,
             readonly=True,
             background_color=sgh.NO_BG,
-            key=WordAppearanceTab.KEYS.WORDS_SORT
+            key=WordTab.KEYS.WORDS_SORT
         )
 
         self.words_direction_dropdown = sg.Combo(
-            values=list(WordAppearanceTab.WORDS_SORT_DIRECTION.keys()),
-            default_value=WordAppearanceTab.DEFAULT_WORDS_SORT_DIRECTION,
+            values=list(WordTab.WORDS_SORT_DIRECTION.keys()),
+            default_value=WordTab.DEFAULT_WORDS_SORT_DIRECTION,
             text_color=sgh.DROP_DOWN_TEXT_COLOR,
             size=(11, 1),
             enable_events=True,
             readonly=True,
             background_color=sgh.NO_BG,
-            key=WordAppearanceTab.KEYS.WORDS_DIRECTION
+            key=WordTab.KEYS.WORDS_DIRECTION
         )
+
+        self.words_counter_text = sg.Text("0 Results.", size=(11, 1), auto_size_text=False)
 
         self.select_word_list = sg.Listbox(
             values=[""],
@@ -194,13 +198,14 @@ class WordAppearanceTab(CustomTab):
             size=(20, 100),
             select_mode=sg.SELECT_MODE_SINGLE,
             enable_events=True,
-            key=WordAppearanceTab.KEYS.WORDS_LIST
+            key=WordTab.KEYS.WORDS_LIST
         )
 
         col = sg.Column(
             layout=[
                 [sg.Text("Sort by: ", size=(6, 1)), self.words_order_dropdown],
                 [sg.Text("Order: ", size=(6, 1)), self.words_direction_dropdown],
+                [self.words_counter_text],
                 [self.select_word_list]
             ]
         )
@@ -208,41 +213,54 @@ class WordAppearanceTab(CustomTab):
         return col
 
     def _create_word_preview_column(self):
-        headers = ["Book", "Book Id", "Offset", "Paragraph", "Line", "Line Index", "Sentence", "Sentence Index"]
-        col_widths = [max(len(col), 4) for col in headers]
-        col_widths[0] = 15
+        # header_name, is_visible
+        headers = [
+            ("Book", True),
+            ("Book Id", False),
+            ("Offset", False),
+            ("Paragraph", True),
+            ("Line", True),
+            ("Line Index", True),
+            ("Sentence", True),
+            ("Sentence Index", True)
+        ]
+
+        col_widths = [max(len(col_name), 10) for col_name, _is_visible in headers]
+        col_widths[0] = 30
         self.word_appr_table = sg.Table(
             values=[[''] * len(headers)],
-            headings=headers,
+            headings=[col_name for col_name, _is_visible in headers],
             num_rows=10,
             justification=sg.TEXT_LOCATION_CENTER,
             col_widths=col_widths,
             auto_size_columns=False,
             enable_events=True,
             select_mode=sg.SELECT_MODE_BROWSE,
-            visible_column_map=[True, False, False] + [True] * (len(headers) - 3),
-            key=WordAppearanceTab.KEYS.APPR_TABLE
+            visible_column_map=[is_visible for _col_name, is_visible in headers],
+            key=WordTab.KEYS.APPR_TABLE
         )
 
-        self.book_title = sg.Text(
+        book_title = sg.Text(
             text="",
-            font=(None, 15),
+            font=sgh.TITLE_FONT_SIZE,
             justification=sg.TEXT_LOCATION_CENTER,
             auto_size_text=False
         )
-        self.context_window = sg.Multiline(
+        book_context_multiline = sg.Multiline(
             default_text="",
-            size=(80, 25),
+            size=(100, 25),
             text_color=sgh.MULTILINE_TEXT_COLOR,
             background_color=sgh.MULTILINE_BG_COLOR,
             disabled=True
         )
 
+        self.context_manager = BookContextManager(self.db, book_context_multiline, book_title)
+
         col = sg.Column(
             layout=[
                 [self.word_appr_table],
-                [self.book_title],
-                [self.context_window]
+                [book_title],
+                [book_context_multiline]
             ],
             element_justification=sgh.CENTER
         )
@@ -250,72 +268,73 @@ class WordAppearanceTab(CustomTab):
         return col
 
     def initialize(self):
-        text_widget = self.context_window.TKText  # type: ScrolledText
-        text_widget.tag_configure("highlight",
-                                  foreground=sgh.WORD_HIGHLIGHT_TEXT_COLOR,
-                                  background=sgh.WORD_HIGHLIGHT_BG_COLOR)
-        text_widget.mark_set("highlightStart", "0.0")
-        text_widget.mark_set("highlightEnd", "0.0")
+        self.context_manager.initialize()
+        self.update_filter()
+
+    def reload_from_db(self):
+        self.update_book_dropdown()
+        self.update_group_dropdown()
+        self.book_filter_dropdown.update(value="All")
+        self.group_filter_dropdown.update(value="None")
         self.update_filter()
 
     @property
     def callbacks(self):
         return {
-            WordAppearanceTab.KEYS.UPDATE_FILTER: self.update_filter,
-            WordAppearanceTab.KEYS.SCHEDULE_UPDATE_FILTER: self.schedule_filter_update,
-            WordAppearanceTab.KEYS.REGEX_HELP: self.show_regex_help,
-            WordAppearanceTab.KEYS.WORDS_SORT: self.update_words_sort_order,
-            WordAppearanceTab.KEYS.WORDS_DIRECTION: self.update_words_sort_direction,
-            WordAppearanceTab.KEYS.WORDS_LIST: self.select_word,
-            WordAppearanceTab.KEYS.APPR_TABLE: self.select_word_appr
+            WordTab.KEYS.UPDATE_FILTER: self.update_filter,
+            WordTab.KEYS.SCHEDULE_UPDATE_FILTER: self.schedule_filter_update,
+            WordTab.KEYS.REGEX_HELP: self.show_regex_help,
+            WordTab.KEYS.WORDS_SORT: self.update_words_sort_order,
+            WordTab.KEYS.WORDS_DIRECTION: self.update_words_sort_direction,
+            WordTab.KEYS.WORDS_LIST: self.select_word,
+            WordTab.KEYS.APPR_TABLE: self.select_word_appr
         }
 
     def handle_event(self, event):
         # TODO: this is ugly as fuck
         if str(event).startswith("KEYS.UPDATE_FILTER"):
-            event = WordAppearanceTab.KEYS.UPDATE_FILTER
+            event = WordTab.KEYS.UPDATE_FILTER
         if str(event).startswith("KEYS.SCHEDULE_UPDATE_FILTER"):
-            event = WordAppearanceTab.KEYS.SCHEDULE_UPDATE_FILTER
+            event = WordTab.KEYS.SCHEDULE_UPDATE_FILTER
 
         super().handle_event(event)
 
     @staticmethod
     def show_regex_help():
         sg.popup_ok(
-            WordAppearanceTab.REGEX_HELP_TEXT,
+            WordTab.REGEX_HELP_TEXT,
             title="Words Search Syntax",
-            font=(None, 13),
+            font=sgh.FONT,
             non_blocking=False
         )
 
     def update_book_dropdown(self):
         books = self.db.all_books()
-        self.book_id_to_title_and_full_name = \
-            {book_id: (title, f'{title} by {author}') for book_id, title, author in books}
-        self.book_names_to_id = \
-            {f'{title} by {author}': book_id for book_id, title, author in books}
+        self.book_names_to_id = {f'{title} by {author}': book_id for book_id, title, author, _path, _date in books}
 
         book_options = ["All"] + list(self.book_names_to_id.keys())
-        self.book_filter_dropdown.Update(values=book_options, value=self.book_filter_dropdown.get())
+        self.book_filter_dropdown.update(values=book_options, value=self.book_filter_dropdown.get())
 
         # Update the words list if we filter for all books
         if self.word_appearance_filters["book_id"] is None:
             self.update_words_list()
 
     def update_group_dropdown(self):
-        self.group_name_to_id["All"] = "%"
+        self.group_name_to_id = {"All": "%"}
         groups_list = self.db.all_groups()
         self.group_name_to_id.update({name: group_id for group_id, name in groups_list})
 
         selected_option = self.group_filter_dropdown.get()
         group_options = ["None"] + list(self.group_name_to_id.keys())
-        self.group_filter_dropdown.Update(values=group_options, value=selected_option)
+        self.group_filter_dropdown.update(values=group_options, value=selected_option)
 
         # If we selected "All" we need to update the list with words from the new group
         if selected_option == "All":
             self.update_words_list()
 
     def group_word_insertion_callback(self, group_id):
+        import time
+        time.sleep(10)
         # If the group filter contains the group_id, we need to update the words list
         if self.words_filters["group_id"] in (group_id, "%"):
             self.update_words_list()
@@ -328,7 +347,7 @@ class WordAppearanceTab(CustomTab):
     def trigger_filter_update_event(self):
         window = self.ParentForm
 
-        window.LastButtonClicked = WordAppearanceTab.KEYS.UPDATE_FILTER
+        window.LastButtonClicked = WordTab.KEYS.UPDATE_FILTER
         window.FormRemainedOpen = True
         if window.CurrentlyRunningMainloop:
             window.TKroot.quit()
@@ -345,7 +364,7 @@ class WordAppearanceTab(CustomTab):
         # We can already get the int filters, to immediately change the bg color if illegal input was inserted
         for element, filter_name in self.int_filters:
             self.word_appearance_filters[filter_name] = \
-                WordAppearanceTab.get_int_input(element, self.words_filters.get(filter_name, None))
+                WordTab.get_int_input(element, self.words_filters.get(filter_name))
 
     def update_filter(self):
         self.cancel_filter_scheduler()
@@ -353,7 +372,7 @@ class WordAppearanceTab(CustomTab):
 
         # Words appearance filters
         selected_group = self.group_filter_dropdown.get()
-        self.words_filters["group_id"] = self.group_name_to_id.get(selected_group, None)
+        self.words_filters["group_id"] = self.group_name_to_id.get(selected_group)
 
         letters_filter = self.letters_filter_input.get()
         letters_filter = letters_filter.replace("\"", "\"\"")  # Escape all '"'
@@ -365,7 +384,7 @@ class WordAppearanceTab(CustomTab):
 
         # Word appearance filters
         selected_book = self.book_filter_dropdown.get()
-        self.word_appearance_filters["book_id"] = self.book_names_to_id.get(selected_book, None)
+        self.word_appearance_filters["book_id"] = self.book_names_to_id.get(selected_book)
 
         if self.words_filters != old_words_filters or \
                 self.word_appearance_filters != self.old_word_appearance_filters:
@@ -384,12 +403,12 @@ class WordAppearanceTab(CustomTab):
             if legal_number:
                 int_input = None
 
-        input_element.Update(background_color=
+        input_element.update(background_color=
                              sgh.GOOD_INPUT_BG_COLOR if legal_number else sgh.BAD_INPUT_BG_COLOR)
         return int_input
 
     def update_words_sort_order(self):
-        new_order = WordAppearanceTab.WORDS_SORT_OPTIONS.get(self.words_order_dropdown.get(), None)
+        new_order = WordTab.WORDS_SORT_OPTIONS.get(self.words_order_dropdown.get())
         if new_order is not None:
             old_order = self.curr_words_order
             self.curr_words_order = new_order
@@ -398,7 +417,7 @@ class WordAppearanceTab(CustomTab):
                 self.update_words_list()
 
     def update_words_sort_direction(self):
-        new_dir = WordAppearanceTab.WORDS_SORT_DIRECTION.get(self.words_direction_dropdown.get(), None)
+        new_dir = WordTab.WORDS_SORT_DIRECTION.get(self.words_direction_dropdown.get())
         if new_dir is not None:
             old_dir = self.curr_words_direction
             self.curr_words_direction = new_dir
@@ -421,11 +440,12 @@ class WordAppearanceTab(CustomTab):
             **self.words_filters,
             **self.word_appearance_filters)
 
+        self.words_counter_text.update(f"{len(self.words_list)} Result{'s' if len(self.words_list) != 1 else ''}.")
         self.select_word_list.update(values=[f'{word[2]} ({word[3]})' for word in self.words_list])
         self.select_word()
 
     def select_word(self):
-        select_word_list_indexes = self.select_word_list.GetIndexes()
+        select_word_list_indexes = self.select_word_list.get_indexes()
         if select_word_list_indexes:
             selected_word_row = select_word_list_indexes[0]
             if selected_word_row < len(self.words_list):
@@ -446,11 +466,11 @@ class WordAppearanceTab(CustomTab):
                 word_id=self.selected_word_id,
                 **self.word_appearance_filters)
 
-            self.word_appr_table.Update(
-                values=[[self.book_id_to_title_and_full_name[appr[0]][0]] + list(appr) for appr in appearances]
+            self.word_appr_table.update(
+                values=[(self.db.get_book_title(appr[0])[0], ) + appr for appr in appearances]
             )
         else:
-            self.word_appr_table.Update(values=[])
+            self.word_appr_table.update(values=[])
 
         if self.word_appr_table.TKTreeview.get_children():
             # Manually select the first appearance to be shown
@@ -458,34 +478,7 @@ class WordAppearanceTab(CustomTab):
             self.word_appr_table.SelectedRows = [0]  # This updates PySimpleGUI's rows logic
             self.select_word_appr()
         else:
-            self.hide_book_preview()
-
-    def hide_book_preview(self):
-        self.book_title.Update(value="")
-        self.context_window.Update(value="")
-        self.curr_showed_book = None
-
-    def preview_book(self, book_id):
-        if self.curr_showed_book != book_id:
-            self.book_title.Update(value=self.book_id_to_title_and_full_name[book_id][1])
-            path = self.db.get_book_path(book_id)
-
-            if not path:
-                raise FileNotFoundError
-
-            book_data = cached_read(path[0])
-            self.context_window.Update(value=book_data)
-            self.curr_showed_book = book_id
-
-    def set_context_window_highlight(self, line, line_offset, length):
-        text_widget = self.context_window.TKText  # type: ScrolledText
-        start = "%d.%d" % (line, line_offset)
-        end = "%d.%d" % (line, line_offset + length)
-        text_widget.tag_remove("highlight", "highlightStart", "highlightEnd")
-        text_widget.mark_set("highlightStart", start)
-        text_widget.mark_set("highlightEnd", end)
-        text_widget.tag_add("highlight", "highlightStart", "highlightEnd")
-        text_widget.see("highlightStart")
+            self.context_manager.hide_context()
 
     def select_word_appr(self):
         if self.word_appr_table.SelectedRows:
@@ -495,10 +488,6 @@ class WordAppearanceTab(CustomTab):
                     (appr_book_name, appr_book_id, appr_line_offset, _appr_paragraph, appr_line) = \
                         self.word_appr_table.Values[selected_word_appr_row][0:5]
 
-                    try:
-                        self.preview_book(appr_book_id)
-                    except FileNotFoundError:
-                        return
-
-                    self.set_context_window_highlight(appr_line, appr_line_offset, self.selected_word_length)
+                    self.context_manager.set_context(appr_book_id, appr_line, appr_line_offset,
+                                                     highlight_length=self.selected_word_length)
 

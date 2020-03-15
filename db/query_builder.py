@@ -4,7 +4,7 @@ def build_query(cols=None, tables=None, group_by=None, order_by=None, filter_pla
     cols_str = ", ".join(cols) if cols else "*"
     query = f'SELECT {cols_str} FROM '
 
-    query += ' NATURAL JOIN '.join(tables)
+    query += ' NATURAL JOIN '.join(f'({table})' if ' ' in table else table for table in tables)
 
     constraints = []
     for col_name, value in kwargs.items():
@@ -26,7 +26,5 @@ def build_query(cols=None, tables=None, group_by=None, order_by=None, filter_pla
 
     if order_by:
         query += ' ORDER BY ' + order_by
-
-    print(query)
 
     return query
