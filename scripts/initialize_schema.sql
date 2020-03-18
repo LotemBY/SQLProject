@@ -1,9 +1,12 @@
+-- This file contains the schema definition for the books database
+
 CREATE TABLE IF NOT EXISTS book (
     book_id INTEGER NOT NULL PRIMARY KEY,
     title TEXT NOT NULL,
     author TEXT NOT NULL,
     file_path TEXT NOT NULL UNIQUE,
-    creation_date date,
+    file_size INTEGER NOT NULL,
+    creation_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(title, author),
     CHECK(title <> ''),
     CHECK(author <> ''),

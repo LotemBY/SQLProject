@@ -4,11 +4,16 @@ import PySimpleGUI as sg
 
 import gui.simple_gui_helper as sgh
 from db.exceptions import CheckError
-from gui.book_context_manager import BookContextManager
+from gui.book_context_manager import BookPreview
 from gui.tabs.custom_tab import CustomTab
 
 
 class PhraseTab(CustomTab):
+    """
+    Create new phrases and search for their appearances.
+    """
+
+    # Event keys
     class KEYS(Enum):
         PHRASE_INPUT = auto()
         ADD_PHRASE = auto()
@@ -17,9 +22,9 @@ class PhraseTab(CustomTab):
 
     def __init__(self, db):
         super().__init__(db, "Search Phrases", [[]])
-        self.db.add_book_insert_callback(self.search_phrase)
+        self.db.add_book_insert_callback(self._search_phrase)
 
-        self.phrases = dict(self.db.all_phrases())
+        self.phrases = {}
         self.selected_phrase_id = None
         self.curr_showed_book = None
 
@@ -133,7 +138,7 @@ class PhraseTab(CustomTab):
             disabled=True
         )
 
-        self.context_manager = BookContextManager(self.db, book_context_multiline, book_title)
+        self.book_preview = BookPreview(self.db, book_context_multiline, book_title)
 
         col = sg.Column(
             layout=[
@@ -148,53 +153,64 @@ class PhraseTab(CustomTab):
         return col
 
     def initialize(self):
-        self.context_manager.initialize()
+        self.book_preview.initialize()
+        self.reload()
 
-    def reload_from_db(self):
+    def reload(self):
         self.phrases = dict(self.db.all_phrases())
-        self.update_phrase_dropdown()
+        self.phrase_input.update("")
+        self.book_preview.hide_preview()
+        self._update_phrase_dropdown()
 
     @property
     def callbacks(self):
         return {
-            PhraseTab.KEYS.PHRASE_INPUT: self.clear_phrase_error,
-            PhraseTab.KEYS.ADD_PHRASE: self.add_phrase,
-            PhraseTab.KEYS.PHRASE_SELECTION: self.search_phrase,
-            PhraseTab.KEYS.PHRASE_APPR_TABLE: self.select_phrase_appr
+            PhraseTab.KEYS.PHRASE_INPUT: self._clear_phrase_error,
+            PhraseTab.KEYS.ADD_PHRASE: self._add_phrase,
+            PhraseTab.KEYS.PHRASE_SELECTION: self._search_phrase,
+            PhraseTab.KEYS.PHRASE_APPR_TABLE: self._select_phrase_appr
         }
 
     def handle_enter(self, focused_element):
         if focused_element == self.phrase_input:
-            self.add_phrase()
+            self._add_phrase()
 
-    def clear_phrase_error(self):
+    def _clear_phrase_error(self):
+        """ Clear the phrase error text """
         self.phrase_input_error.update("")
 
-    def add_phrase(self):
+    def _add_phrase(self):
+        """ Insert the entered phrase to the database """
         phrase = self.phrase_input.get()
         if phrase not in self.phrases:
             try:
-                self.phrases[phrase] = self.db.create_phrase(phrase)
+                self.phrases[phrase] = self.db.add_phrase(phrase)
                 self.phrase_input.update("")
-                self.update_phrase_dropdown(curr_value=phrase)
+                self._update_phrase_dropdown(curr_value=phrase)
             except CheckError:
                 self.phrase_input_error.update("Illegal phrase.", text_color=sgh.ERROR_TEXT_COLOR)
         else:
             self.phrase_input_error.update("Phrase already inserted.", text_color=sgh.ERROR_TEXT_COLOR)
 
-    def update_phrase_dropdown(self, curr_value=""):
+    def _update_phrase_dropdown(self, curr_value=""):
+        """ Update the list of available phrases for search """
         self.phrase_dropdown.update(values=list(self.phrases.keys()), value=curr_value)
-        self.search_phrase()
+        self._search_phrase()
 
-    def search_phrase(self):
+    def _search_phrase(self):
+        """ Search the selected phrase for all of his appearances """
         selected_phrase = self.phrase_dropdown.get()
         self.selected_phrase_id = self.phrases.get(selected_phrase)
-        self.update_phrase_appr_table()
+        self._update_phrase_appr_table()
 
-    def update_phrase_appr_table(self):
+    def _update_phrase_appr_table(self):
+        """ Update the appearances table with all the found appearances of the phrase """
+
+        # Check if there is a selected phrase
         if self.selected_phrase_id:
             appearances = self.db.find_phrase(self.selected_phrase_id)
 
+            # Iterate over the found phrases and convert them to the wanted table columns
             phrases_appr_table_values = []
             for book_id, sentence, start_index, end_index in appearances:
                 start_line, start_line_offset = self.db.word_location_to_offset(book_id, sentence, start_index)
@@ -208,18 +224,21 @@ class PhraseTab(CustomTab):
             self.appearances_count_text.update(value=f"Number of Appearances: {len(phrases_appr_table_values)}")
             self.phrase_appr_table.update(values=phrases_appr_table_values)
         else:
+            # No phrase was selected
             self.appearances_count_text.update(value=f"Number of Appearances: None")
             self.phrase_appr_table.update(values=[])
 
+        # Check if there where any appearances found
         if self.phrase_appr_table.TKTreeview.get_children():
             # Manually select the first appearance to be shown
             self.phrase_appr_table.TKTreeview.selection_set(1)  # This updates the GUI widget
             self.phrase_appr_table.SelectedRows = [0]  # This updates PySimpleGUI's rows logic
-            self.select_phrase_appr()
+            self._select_phrase_appr()
         else:
-            self.context_manager.hide_context()
+            self.book_preview.hide_preview()
 
-    def select_phrase_appr(self):
+    def _select_phrase_appr(self):
+        """ Select appearance of the phrase to be previewed """
         if self.phrase_appr_table.SelectedRows:
             selected_word_appr_row = self.phrase_appr_table.SelectedRows[0]
             if selected_word_appr_row < len(self.phrase_appr_table.Values):
@@ -229,6 +248,4 @@ class PhraseTab(CustomTab):
                      start_index, start_line, start_line_offset,
                      end_index, end_line, end_line_offset) = self.phrase_appr_table.Values[selected_word_appr_row]
 
-                    self.context_manager.set_context(book_id, start_line, start_line_offset, end_line, end_line_offset)
-
-
+                    self.book_preview.set_preview(book_id, start_line, start_line_offset, end_line_offset, end_line)

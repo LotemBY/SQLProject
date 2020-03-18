@@ -1,3 +1,4 @@
-from gui.main_window import BookGUI
+from gui.books_ui import BooksUi
 
-BookGUI().start()
+if __name__ == '__main__':
+    BooksUi().start()

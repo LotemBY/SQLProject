@@ -5,22 +5,27 @@ import PySimpleGUI as sg
 import db.sql_queries as queries
 import gui.simple_gui_helper as sgh
 from gui.tabs.custom_tab import CustomTab
+from utils.utils import float_to_str, file_size_to_str
 
 ALL_BOOKS_FILTER = "> 0"
 
 
 class StatisticsTab(CustomTab):
-    class KEYS(Enum):
-        SELECT_BOOK = auto()
+    """
+    Calculate statistical information about the inserted data.
+    """
 
+    # General statistics about the amount of stuff inserted
     GENERAL_STATISTICS = (
         ("Total Books", queries.BOOKS_COUNT),
+        ("Total Books Size", queries.TOTAL_SIZE),
         ("Total Groups", queries.GROUPS_COUNT),
         ("Average Words in Group", queries.AVG_WORDS_PER_GROUP),
         ("Total Phrases", queries.PHRASES_COUNT),
         ("Average Words in Phrase", queries.AVG_WORDS_PER_PHRASE)
     )
 
+    # Specific statistics about a book (or all books)
     SPECIFIC_STATISTICS = (
         ("Total Words", queries.TOTAL_WORDS),
         ("Total Unique Words", queries.TOTAL_UNIQUE_WORDS),
@@ -28,20 +33,25 @@ class StatisticsTab(CustomTab):
         ("Average Letters in Word", queries.AVG_LETTERS_PER_WORD)
     )
 
+    # Specific statistics template to be replaced with a column name
     SPECIFIC_STATISTICS_TEMPLATE = (
         ("Total {count_column}s", queries.TOTAL_COLUMN_COUNT),
         ("Average Words in {count_column}", queries.WORDS_COUNT),
         ("Average Letters in {count_column}", queries.LETTERS_COUNT)
     )
 
+    # Event keys
+    class KEYS(Enum):
+        SELECT_BOOK = auto()
+
     def __init__(self, db):
         super().__init__(db, "Statistics", [[]])
-        self.db.add_book_insert_callback(self.update_book_dropdown)
-        self.db.add_group_insert_callback(self.refresh_general_statistics)
-        self.db.add_group_word_insert_callback(self.refresh_general_statistics)
-        self.db.add_phrase_insert_callback(self.refresh_general_statistics)
+        self.db.add_book_insert_callback(self._update_book_dropdown)
+        self.db.add_group_insert_callback(self._refresh_general_statistics)
+        self.db.add_group_word_insert_callback(self._refresh_general_statistics)
+        self.db.add_phrase_insert_callback(self._refresh_general_statistics)
 
-        self.book_id_filter = ALL_BOOKS_FILTER
+        self.selected_book_id = None
         self.book_names_to_id = {}
         self.layout(
             [
@@ -53,8 +63,8 @@ class StatisticsTab(CustomTab):
         )
 
     @staticmethod
-    def create_elements(elements_list, title, query, font=sgh.MEDIUM_FONT_SIZE):
-        result_text = sg.Text(text="0", size=(7, 1), pad=(0, 5), font=font, text_color=sgh.INPUT_COLOR)
+    def _create_elements(elements_list, title, query, font=sgh.MEDIUM_FONT_SIZE):
+        result_text = sg.Text(text="0", size=(10, 1), pad=(0, 5), font=font, text_color=sgh.INPUT_COLOR)
         title_text = sg.Text(text=title + ": ", size=(25, 1), font=font)
         elements_list.append((title, result_text, query))
         return title_text, result_text
@@ -64,7 +74,7 @@ class StatisticsTab(CustomTab):
 
         statistic_lines = []
         for title, query in StatisticsTab.GENERAL_STATISTICS:
-            title, result_text = self.create_elements(self.general_statistics, title, query, sgh.BIG_FONT_SIZE)
+            title, result_text = self._create_elements(self.general_statistics, title, query, sgh.BIG_FONT_SIZE)
             statistic_lines.append([title, result_text])
 
         frame = sg.Frame(
@@ -95,7 +105,7 @@ class StatisticsTab(CustomTab):
         self.specific_statistics = []
         first_rows = []
         for rows_counter, (title, query) in enumerate(StatisticsTab.SPECIFIC_STATISTICS):
-            title_text, result_text = self.create_elements(self.specific_statistics, title, query, sgh.BIG_FONT_SIZE)
+            title_text, result_text = self._create_elements(self.specific_statistics, title, query, sgh.BIG_FONT_SIZE)
 
             first_rows.append([title_text, result_text])
             if rows_counter % 2 == 1:
@@ -105,9 +115,9 @@ class StatisticsTab(CustomTab):
         for column in "paragraph", "line", "sentence":
             col_rows = []
             for title, query in StatisticsTab.SPECIFIC_STATISTICS_TEMPLATE:
-                title_text, result_text = self.create_elements(self.specific_statistics,
-                                                               title.format(count_column=column.title()),
-                                                               query.format(count_column=column))
+                title_text, result_text = self._create_elements(self.specific_statistics,
+                                                                title.format(count_column=column.title()),
+                                                                query.format(count_column=column))
 
                 col_rows.append([title_text, result_text])
             second_cols.append(sg.Column(layout=col_rows))
@@ -129,61 +139,63 @@ class StatisticsTab(CustomTab):
 
         return frame
 
-    def reload_from_db(self):
-        self.book_id_filter = ALL_BOOKS_FILTER
-        self.update_book_dropdown()
+    def initialize(self):
+        self.reload()
+
+    def reload(self):
+        self.selected_book_id = None
+        self._update_book_dropdown()
         self.books_dropdown.update(value="All")
 
     @property
     def callbacks(self):
         return {
-            StatisticsTab.KEYS.SELECT_BOOK: self.select_book,
+            StatisticsTab.KEYS.SELECT_BOOK: self._select_book,
         }
 
-    def update_book_dropdown(self):
+    def _update_book_dropdown(self):
+        """ Update the list of available books """
         books = self.db.all_books()
-        self.book_names_to_id = {f'{title} by {author}': book_id for book_id, title, author, _path, _date in books}
+        self.book_names_to_id = {f'{book[1]} by {book[2]}': book[0] for book in books}
 
         book_options = ["All"] + list(self.book_names_to_id.keys())
         self.books_dropdown.update(values=book_options, value=self.books_dropdown.get())
 
-        self.refresh_general_statistics()
+        # If the list of books was updated, the general statistics also needs to be updated
+        self._refresh_general_statistics()
 
         # Update the specific statistics if "All" are selected
-        if self.book_id_filter == ALL_BOOKS_FILTER:
-            self.refresh_specific_statistics()
+        if self.selected_book_id is None:
+            self._refresh_specific_statistics()
 
-    def select_book(self):
-        selected_book_id = self.book_names_to_id.get(self.books_dropdown.get())
-        self.book_id_filter = ALL_BOOKS_FILTER if selected_book_id is None else f"== {selected_book_id}"
-        self.refresh_specific_statistics()
+    def _select_book(self):
+        """ Select a book from the list """
+        old_id = self.selected_book_id
+        self.selected_book_id = self.book_names_to_id.get(self.books_dropdown.get())
+
+        # Don't refresh if there is only 1 book, or the same book is selected
+        if len(self.book_names_to_id) > 1 and self.selected_book_id != old_id:
+            self._refresh_specific_statistics()
 
     @staticmethod
-    def get_result_str(cursor):
+    def _single_result_to_str(cursor):
         # Fetch one result from the cursor and select the first column
         result = cursor.fetchone()[0]
+        return float_to_str(result, ndigits=3)
 
-        # If result is None, make it a zero
-        if result is None:
-            result = 0
-        elif isinstance(result, float):
-            # If result is float, round it to 3 digits
-            result = round(result, 3)
+    def _refresh_general_statistics(self, _updated_group=None):
+        """ Re-calculate all the general statistics """
+        for _text, element, query in self.general_statistics:
+            result = self.db.execute(query)
+            if query == queries.TOTAL_SIZE:
+                element.update(value=file_size_to_str(result.fetchone()[0]))
+            else:
+                element.update(value=self._single_result_to_str(result))
 
-            # If the result is a float which is a whole number, convert it to int
-            if int(result) == result:
-                result = int(result)
+    def _refresh_specific_statistics(self):
+        """ Re-calculate all the specific statistics about the currently selected book """
+        book_id_filter = ALL_BOOKS_FILTER if self.selected_book_id is None else f"== {self.selected_book_id}"
 
-        return str(result)
-
-    def refresh_general_statistics(self, _updated_group=None):
-        for _text, result, query in self.general_statistics:
-            result.update(value=self.get_result_str(self.db.execute(query)))
-
-    def refresh_specific_statistics(self):
-        for _text, result, query in self.specific_statistics:
-            result.update(value=self.get_result_str(self.db.execute(query.format(book_id_filter=self.book_id_filter))))
-
-    def refresh_statistics(self):
-        self.refresh_general_statistics()
-        self.refresh_specific_statistics()
+        for _text, element, query in self.specific_statistics:
+            result = self.db.execute(query.format(book_id_filter=book_id_filter))
+            element.update(value=self._single_result_to_str(result))

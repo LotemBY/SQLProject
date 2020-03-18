@@ -1,22 +1,39 @@
+"""
+This files contains the different SQL queries used.
+"""
+
+
 #
 # INSERT TO DATABASE
 #
 
 # language=SQL
 INSERT_BOOK = """
-INSERT INTO book(title, author, file_path, creation_date)
-values (?, ?, ?, ?);
+INSERT INTO book(title, author, file_path, file_size, creation_date)
+values (?, ?, ?, ?, ?);
 """
 
 # language=SQL
 INSERT_WORD = """
-INSERT INTO word(name)
+INSERT OR IGNORE INTO word(name)
 values (?);
 """
 
 # language=SQL
+INSERT_WORD_WITH_ID = """
+INSERT INTO word(word_id, name)
+values (?, ?);
+"""
+
+# language=SQL
 INSERT_WORD_APPEARANCE = """
-INSERT INTO word_appearance(word_index, book_id, word_id, paragraph, line, line_index, line_offset, sentence, sentence_index)
+INSERT INTO word_appearance(book_id, word_id, word_index, paragraph, line, line_index, line_offset, sentence, sentence_index)
+VALUES (?, (SELECT word_id FROM word WHERE name == ?), ?, ?, ?, ?, ?, ?, ?);
+"""
+
+# language=SQL
+INSERT_WORD_ID_APPEARANCE = """
+INSERT INTO word_appearance(book_id, word_id, word_index, paragraph, line, line_index, line_offset, sentence, sentence_index)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
@@ -40,6 +57,12 @@ INSERT INTO phrase(phrase_text, words_count) VALUES (?, ?);
 # language=SQL
 INSERT_WORD_TO_PHRASE = """
 INSERT INTO word_in_phrase(phrase_id, word_id, phrase_index)
+values (?, (SELECT word_id FROM word WHERE name == ?), ?);
+"""
+
+# language=SQL
+INSERT_WORD_ID_TO_PHRASE = """
+INSERT INTO word_in_phrase(phrase_id, word_id, phrase_index)
 values (?, ?, ?);
 """
 
@@ -53,7 +76,7 @@ ALL_WORDS = "SELECT word_id, name " \
             "ORDER BY name"
 
 # language=SQL
-ALL_BOOKS = "SELECT book_id, title, author, file_path, creation_date " \
+ALL_BOOKS = "SELECT book_id, title, author, file_path, file_size, STRFTIME(?, creation_date) " \
             "FROM book"
 
 # language=SQL
@@ -145,6 +168,10 @@ FROM
     FROM word_in_phrase
     GROUP BY phrase_id)
 """
+
+# language=SQL
+TOTAL_SIZE = "SELECT SUM(file_size) " \
+             "FROM book"
 
 # language=SQL
 TOTAL_WORDS = "SELECT COUNT(word_index) " \

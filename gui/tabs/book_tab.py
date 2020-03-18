@@ -1,5 +1,3 @@
-import os
-import re
 from datetime import datetime
 from enum import Enum, auto
 from os.path import splitext, split
@@ -10,26 +8,29 @@ import PySimpleGUI as sg
 import gui.simple_gui_helper as sgh
 from db.exceptions import NonUniqueError, CheckError
 from gui.tabs.custom_tab import CustomTab
-from utils.global_constants import DATE_FORMAT
-from utils.utils import open_encoded_file
+from utils.book_parser import parse_book_file
+from utils.constants import DATE_FORMAT
+from utils.utils import file_size_to_str
 
 
 class BookTab(CustomTab):
-    AUTHOR_REGEX = r"Author: (.+)$"
-    TITLE_REGEX = r"Title: (.+)$"
+    """
+    Preview inserted books and insert new books.
+    """
 
+    # Event keys
     class KEYS(Enum):
         FILE_INPUT = auto()
-        CONFIRM = auto()
+        INSERT_BOOK = auto()
         UPDATE_FILTER = auto()
         BOOKS_TABLE = auto()
         OPEN_BOOK = auto()
 
     def __init__(self, db):
         super().__init__(db, "Insert Book", [[]])
-        self.db.add_book_insert_callback(self.update_books_table)
+        self.db.add_book_insert_callback(self._update_books_table)
 
-        self.filters = {}
+        self.filters = {}  # The book list dynamic filters
         self.selected_book_id = None
 
         self.layout([
@@ -50,8 +51,8 @@ class BookTab(CustomTab):
 
         self.file_size_text = sg.Text("File size: None", auto_size_text=False)
 
-        insert_book_button = sg.Ok("Insert Book", key=BookTab.KEYS.CONFIRM, size=(20, 0))
-        self.response_text = sg.Text("", text_color=sgh.ERROR_TEXT_COLOR, auto_size_text=False)
+        insert_book_button = sg.Ok("Insert Book", key=BookTab.KEYS.INSERT_BOOK, size=(20, 0))
+        self.error_text = sg.Text("", text_color=sgh.ERROR_TEXT_COLOR, auto_size_text=False)
 
         frame = sg.Frame(
             title="",
@@ -61,7 +62,7 @@ class BookTab(CustomTab):
                 [sg.Text("Author:", size=(5, 1)), self.author_input],
                 [sg.Text("Date:", size=(5, 1)), self.date_input, select_date_button],
                 [self.file_size_text],
-                [insert_book_button, self.response_text],
+                [insert_book_button, self.error_text],
             ]
         )
 
@@ -88,13 +89,13 @@ class BookTab(CustomTab):
     def _create_books_explorer_frame(self):
         self.books_table = sg.Table(
             values=[],
-            headings=["Book ID", "Title", "Author", "Path", "Date"],
+            headings=["Book ID", "Title", "Author", "Path", "Date", "Size"],
             num_rows=13,
             justification=sg.TEXT_LOCATION_LEFT,
-            col_widths=[0, 30, 25, 40, 10],
+            col_widths=[0, 30, 20, 40, 13, 13],
             auto_size_columns=False,
             enable_events=True,
-            visible_column_map=[False, True, True, True, True],
+            visible_column_map=[False, True, True, True, True, True],
             key=BookTab.KEYS.BOOKS_TABLE
         )
 
@@ -116,19 +117,25 @@ class BookTab(CustomTab):
         return frame
 
     def initialize(self):
-        self.update_books_filter()
+        self._update_books_filter()
 
-    def reload_from_db(self):
-        self.update_books_table()
+    def reload(self):
+        self._clear_book_insert_frame()
+
+        for _filter_name, element in self.str_filters:
+            element.update("")
+        self._update_books_filter()
+
+        self._update_books_table()
 
     @property
     def callbacks(self):
         return {
-            BookTab.KEYS.FILE_INPUT: self.load_file_input,
-            BookTab.KEYS.CONFIRM: self.confirm,
-            BookTab.KEYS.UPDATE_FILTER: self.update_books_filter,
-            BookTab.KEYS.BOOKS_TABLE: self.select_book,
-            BookTab.KEYS.OPEN_BOOK: self.open_book_file
+            BookTab.KEYS.FILE_INPUT: self._load_file_input,
+            BookTab.KEYS.INSERT_BOOK: self._insert_book,
+            BookTab.KEYS.UPDATE_FILTER: self._update_books_filter,
+            BookTab.KEYS.BOOKS_TABLE: self._select_book,
+            BookTab.KEYS.OPEN_BOOK: self._open_book_file
         }
 
     def handle_event(self, event):
@@ -137,32 +144,17 @@ class BookTab(CustomTab):
 
         super().handle_event(event)
 
-    @staticmethod
-    def parse_book_file(path):
-        name_match = author_match = None
-        with open_encoded_file(path) as file:
-            for line in file:
-                if not name_match:
-                    name_match = re.search(BookTab.TITLE_REGEX, line)
-                if not author_match:
-                    author_match = re.search(BookTab.AUTHOR_REGEX, line)
-                if name_match and author_match:
-                    break
+    def _load_file_input(self):
+        """ Try to load the input file as it is being typed """
 
-            size = file.seek(0, 2)
-
-        name = name_match.group(1) if name_match else None
-        author = author_match.group(1) if author_match else None
-        date = os.path.getctime(path)
-        return size, name, author, date
-
-    def load_file_input(self):
         path = self.file_input.get()
+        # The default book name is the filename
         book_name = splitext(split(path)[-1])[0].replace('_', ' ').title()
 
+        # Parse the book file
         try:
-            size, name, author, date = BookTab.parse_book_file(path)
-            size_str = f'{size} bytes'
+            name, author, date, size = parse_book_file(path)
+            size_str = file_size_to_str(size)
             if name:
                 book_name = name
             if not author:
@@ -172,29 +164,35 @@ class BookTab(CustomTab):
             author = None
             date = None
 
-        self.title_input.update(book_name)
-        self.author_input.update(author)
+        # Update the different inputs
         if date:
             self.date_input.update(datetime.fromtimestamp(date).strftime(DATE_FORMAT))
 
+        self.title_input.update(book_name)
+        self.author_input.update(author)
         self.file_size_text.update(f"File size: {size_str}")
-        self.response_text.update("")
+        self.error_text.update("")
 
-    def confirm(self):
+    def _clear_book_insert_frame(self):
+        """ Clear the insertion frame inputs """
+        self.file_input.update("")
+        self.title_input.update("")
+        self.author_input.update("")
+        self.date_input.update("")
+        self.file_size_text.update("File size: None")
+        self.error_text.update("")
+
+    def _insert_book(self):
+        """ Insert the book to the database """
         error_msg = ""
         try:
             date = datetime.strptime(self.date_input.get(), DATE_FORMAT)
-            self.db.insert_book_to_db(self.title_input.get(),
-                                      self.author_input.get(),
-                                      self.file_input.get(),
-                                      date)
-            self.update_books_table()
-
-            self.file_input.update("")
-            self.title_input.update("")
-            self.author_input.update("")
-            self.date_input.update("")
-            self.file_size_text.update("File size: None")
+            self.db.add_book(self.title_input.get(),
+                             self.author_input.get(),
+                             self.file_input.get(),
+                             date)
+            self._update_books_table()
+            self._clear_book_insert_frame()
         except FileNotFoundError:
             error_msg = "Failed to open the file."
         except ValueError:
@@ -204,9 +202,10 @@ class BookTab(CustomTab):
         except CheckError:
             error_msg = "Illegal input."
 
-        self.response_text.update(error_msg)
+        self.error_text.update(error_msg)
 
-    def update_books_filter(self):
+    def _update_books_filter(self):
+        """ Update the dynamic filters for the books list"""
         for filter_name, element in self.str_filters:
             letters_filter = element.get()
             if letters_filter:
@@ -218,25 +217,29 @@ class BookTab(CustomTab):
             else:
                 self.filters[filter_name] = None
 
-        self.update_books_table()
+        self._update_books_table()
 
-    def get_books_filter_tables(self):
+    def _get_books_filter_tables(self):
+        """ Return the additional tables needed for the current filters"""
         filter_tables = []
         if self.filters["name"]:
             filter_tables += ["word", "word_appearance"]
         return filter_tables
 
-    def update_books_table(self):
-        books = self.db.search_books(tables=self.get_books_filter_tables(), **self.filters)
-        self.books_table.update(values=books)
+    def _update_books_table(self):
+        """ Update the books list shown """
+        books = self.db.search_books(tables=self._get_books_filter_tables(), **self.filters)
+        self.books_table.update(values=[book[:5] + (file_size_to_str(book[5]),) for book in books])
 
-    def select_book(self):
+    def _select_book(self):
+        """ Select a book from the books list """
         if self.books_table.SelectedRows:
             selected_book_row = self.books_table.SelectedRows[0]
             if selected_book_row < len(self.books_table.Values):
                 self.selected_book_id = self.books_table.Values[selected_book_row][0]
 
-    def open_book_file(self):
+    def _open_book_file(self):
+        """ Open the selected book with the default editing program """
         if self.books_table.SelectedRows:
             selected_book_row = self.books_table.SelectedRows[0]
             if selected_book_row < len(self.books_table.Values):

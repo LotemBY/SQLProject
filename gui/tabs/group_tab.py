@@ -10,6 +10,11 @@ INVALID_GROUP_NAMES = ["none", "all"]
 
 
 class GroupTab(CustomTab):
+    """
+    Insert new groups, and fill them with words.
+    """
+
+    # Event keys
     class KEYS(Enum):
         GROUP_INPUT = auto()
         WORD_INPUT = auto()
@@ -20,8 +25,10 @@ class GroupTab(CustomTab):
 
     def __init__(self, db):
         super().__init__(db, "Word Groups", [[]])
-        self.db.add_group_insert_callback(self.update_groups_list)
-        self.db.add_group_word_insert_callback(self.group_word_insertion_callback)
+
+        # Add callbacks
+        self.db.add_group_insert_callback(self._update_groups_list)
+        self.db.add_group_word_insert_callback(self._group_word_insertion_callback)
 
         self.groups_list = []
         self.selected_group_id = None
@@ -128,64 +135,78 @@ class GroupTab(CustomTab):
 
         return col
 
-    def reload_from_db(self):
-        self.update_groups_list()
+    def reload(self):
+        self.group_input.update("")
+        self._clear_group_error()
+
+        self.word_input.update("")
+        self._clear_word_error()
+
+        self._update_groups_list()
+
         self.add_words_title.update(value=f"Add Words to Group")
-        self.update_words_list()
+        self._update_words_list()
 
     @property
     def callbacks(self):
         return {
-            GroupTab.KEYS.GROUP_INPUT: self.clear_group_error,
-            GroupTab.KEYS.WORD_INPUT: self.clear_word_error,
-            GroupTab.KEYS.INSERT_GROUP: self.insert_group,
-            GroupTab.KEYS.GROUPS_LIST: self.select_group,
-            GroupTab.KEYS.INSERT_WORD: self.insert_word
+            GroupTab.KEYS.GROUP_INPUT: self._clear_group_error,
+            GroupTab.KEYS.WORD_INPUT: self._clear_word_error,
+            GroupTab.KEYS.INSERT_GROUP: self._insert_group,
+            GroupTab.KEYS.GROUPS_LIST: self._select_group,
+            GroupTab.KEYS.INSERT_WORD: self._insert_word
         }
 
     def handle_enter(self, focused_element):
         if focused_element == self.group_input:
-            self.insert_group()
+            self._insert_group()
         elif focused_element == self.word_input:
-            self.insert_word()
+            self._insert_word()
 
-    def clear_group_error(self):
+    def _clear_group_error(self):
+        """ Clear the group error text """
         self.group_error_text.update("")
 
-    def insert_group(self):
+    def _insert_group(self):
+        """ Insert the entered group to the database """
         try:
             self.db.insert_words_group(self.group_input.get())
             self.group_input.update("")
+
             # Select the newly added group
             self.select_group_list.update(set_to_index=len(self.groups_list) - 1)
-            self.select_group()
+            self._select_group()
         except NonUniqueError:
             self.group_error_text.update("Group already exists.")
         except CheckError:
             self.group_error_text.update("Invalid group name.")
 
-    def update_groups_list(self):
+    def _update_groups_list(self):
+        """ Update the list of groups """
         self.groups_list = self.db.all_groups()
         self.select_group_list.update(values=[group[1] for group in self.groups_list])
 
         # If we only have 1 item in the list, we should select it manually
         if len(self.groups_list) == 1:
             self.select_group_list.update(set_to_index=0)
-            self.select_group()
+            self._select_group()
 
-    def select_group(self):
+    def _select_group(self):
+        """ Select a group to insert words into """
         select_group_list_indexes = self.select_group_list.get_indexes()
         if select_group_list_indexes:
             selected_group_row = select_group_list_indexes[0]
             if selected_group_row < len(self.groups_list):
                 self.selected_group_id, selected_group_name = self.groups_list[selected_group_row]
                 self.add_words_title.update(value=f"Add Words to {selected_group_name}")
-                self.update_words_list()
+                self._update_words_list()
 
-    def clear_word_error(self):
+    def _clear_word_error(self):
+        """ Clear the word insert error text """
         self.words_error_text.update("")
 
-    def insert_word(self):
+    def _insert_word(self):
+        """ Insert the entered word into the currently selected group """
         if self.selected_group_id is not None:
             try:
                 self.db.insert_word_to_group(self.selected_group_id, self.word_input.get())
@@ -197,9 +218,11 @@ class GroupTab(CustomTab):
         else:
             self.words_error_text.update("No group was selected.")
 
-    def group_word_insertion_callback(self, group_id):
+    def _group_word_insertion_callback(self, group_id):
+        """ Update the words list if the currently selected group was updated"""
         if self.selected_group_id == group_id:
-            self.update_words_list()
+            self._update_words_list()
 
-    def update_words_list(self):
+    def _update_words_list(self):
+        """ Update the words list with the words from the currently selected group """
         self.words_list.update(values=[name for word_id, name in self.db.words_in_group(self.selected_group_id)])

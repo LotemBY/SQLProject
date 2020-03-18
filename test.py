@@ -4,12 +4,13 @@ from datetime import datetime
 from db.books_db import BookDatabase
 from db.query_builder import build_query
 from db.xml.export_db import export_db
+from db.xml.import_db import import_db
 
 BOOKS = [r"C:\Users\Lotem\Desktop\sql\example_book2.txt", r"C:\Users\Lotem\Desktop\sql\LOTR.txt"]
 
 
 def print_most_common_words(db: BookDatabase):
-    for word, word_id, count in db.run_sql_file("common_words"):
+    for word, word_id, count in db._run_sql_script("common_words"):
         print('%6s %12s | %d' % (f'({word_id})', word, count))
 
 
@@ -20,7 +21,7 @@ def init_test_db():
 
 
 def phrase_test(db: BookDatabase):
-    phrase_id = db.create_phrase("a b")
+    phrase_id = db.add_phrase("a b")
 
     print("Searching phrase.")
 
@@ -59,7 +60,7 @@ def statistics(db, book_id):
     )[0][0]))
 
     for search_category in "paragraph", "line", "sentence":
-        print(f"Total {search_category}s: " + str(db.build_and_exec_query(
+        print(f"Total {search_category}s: " + str(db.build_and_exec(
             cols=["SUM(amount_per_book)"],
             tables=[build_query(
                 cols=[f"COUNT(DISTINCT {search_category}) as amount_per_book"],
@@ -69,7 +70,7 @@ def statistics(db, book_id):
             )]
         )))
 
-        print(f"Avg Words per {search_category}: " + str(db.build_and_exec_query(
+        print(f"Avg Words per {search_category}: " + str(db.build_and_exec(
             cols=["AVG(words_count)"],
             tables=[build_query(
                 cols=["COUNT(DISTINCT sentence_index) as words_count"],
@@ -79,7 +80,7 @@ def statistics(db, book_id):
             )]
         )))
 
-        print(f"Avg Letters per {search_category}: " + str(db.build_and_exec_query(
+        print(f"Avg Letters per {search_category}: " + str(db.build_and_exec(
             cols=["AVG(letters_count)"],
             tables=[build_query(
                 cols=["SUM(length) as letters_count"],
@@ -90,29 +91,40 @@ def statistics(db, book_id):
         )))
 
 
-if __name__ == '__main__':
+def main():
     db = init_test_db()
 
     print("Inserting book.")
-    # book_id1 = db.insert_book_to_db("lotr", "Lotem", r"C:\Users\Lotem\Desktop\sql\LOTR.txt", datetime.now())
-    book_id2 = db.insert_book_to_db("Phrases", "Lotem", r"C:\Users\Lotem\Desktop\sql\phrase_test.txt", datetime.now())
-    book_id2 = db.insert_book_to_db("Book1", "Lotem", r"C:\Users\Lotem\Desktop\sql\book1.txt", datetime.now())
+    # book_id0 = db.insert_book_to_db("lotr", "Lotem", r"C:\Users\Lotem\Desktop\sql\LOTR.txt", datetime.now())
+    book_id1 = db.add_book("Phrases", "Lotem", r"C:\Users\Lotem\Desktop\sql\phrase_test.txt", datetime.now())
+    book_id2 = db.add_book("Book1", "Lotem", r"C:\Users\Lotem\Desktop\sql\book1.txt", datetime.now())
+    book_id3 = db.add_book("Empty", "Lotem", r"C:\Users\Lotem\Desktop\sql\empty_book.txt", datetime.now())
 
     group1 = db.insert_words_group("My group 1")
     group2 = db.insert_words_group("My group 2")
+    group3 = db.insert_words_group("My group 3")
 
-    for i in range(10):
+    for i in range(5):
+        db.insert_word_to_group(group1, f"word0{i}")
         db.insert_word_to_group(group1, f"word1{i}")
+
+        db.insert_word_to_group(group2, f"word0{i}")
         db.insert_word_to_group(group2, f"word2{i}")
 
-    db.create_phrase("Wow this is an actual phrase!")
-    db.create_phrase("And this is another phrase omg")
+    db.add_phrase("Wow this is an actual phrase!")
+    db.add_phrase("And this is another phrase omg")
 
     print("Dumping...")
-    export_db(db, "test.xml")
+    export_db(db, "test.xml", prettify=True)
     db.commit()
 
-    exit(0)
+    exit()
 
     print("Creating phrase.")
     db.commit()
+
+
+if __name__ == '__main__':
+    db = init_test_db()
+    db.commit()
+    import_db(db, r"C:\Users\Lotem\Desktop\sql\my_xml.xml")
