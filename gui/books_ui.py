@@ -1,5 +1,4 @@
 import functools
-from datetime import datetime
 from enum import Enum, auto
 from sqlite3 import OperationalError
 
@@ -217,10 +216,10 @@ class BooksUi:
         curr_tab.handle_enter(self.window.find_element_with_focus())
 
     def debug_init_db(self):
-        self.db.add_book("Book",
-                         "Unknown",
-                         r"C:\Users\Lotem\Desktop\sql\ideas.txt",
-                         datetime.now())
+        # self.db.add_book("Book",
+        #                  "Unknown",
+        #                  r"C:\Users\Lotem\Desktop\sql\ideas.txt",
+        #                  datetime.now())
 
         self.db.insert_words_group("Animals")
         self.db.insert_words_group("Weird Words")
@@ -231,7 +230,7 @@ class BooksUi:
         Receive events from the window and handle them.
         """
         self.initialize_tabs()
-        self.debug_init_db()
+        # self.debug_init_db()
 
         while True:
             event = self.window.read()[0]

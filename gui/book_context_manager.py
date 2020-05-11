@@ -8,6 +8,7 @@ class BookPreview:
     """
     Handles the book preview elements
     """
+
     def __init__(self, db, multiline_element, title_element):
         self.db = db
         self.multiline = multiline_element
@@ -68,8 +69,8 @@ class BookPreview:
         text_widget.tag_add("highlight", "highlightStart", "highlightEnd")
         text_widget.see("highlightStart")
 
-    def set_preview(self, book_id, start_line, start_line_offset, highlight_length=None, end_line_offset=None,
-                    end_line=None):
+    def set_preview(self, book_id, start_line, start_line_offset, end_line_offset=None, end_line=None,
+                    highlight_length=None):
         """
         Switch the currently shown book and the highlighted text.
         :param book_id: The book id of the book to preview

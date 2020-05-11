@@ -15,8 +15,8 @@ values (?, ?, ?, ?, ?);
 
 # language=SQL
 INSERT_WORD = """
-INSERT OR IGNORE INTO word(name)
-values (?);
+INSERT OR IGNORE INTO word(name, length)
+values (?, ?);
 """
 
 # language=SQL

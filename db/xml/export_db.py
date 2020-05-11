@@ -7,7 +7,6 @@ from xml.etree.ElementTree import ElementTree, Element, Comment, SubElement, tos
 
 from db.books_db import BookDatabase
 from utils.constants import XML_DATE_FORMAT
-from utils.utils import timeit
 
 
 def prettify(elem):
@@ -20,7 +19,6 @@ def prettify(elem):
     return minidom.parseString(rough_string).toprettyxml(indent="  ")
 
 
-@timeit
 def export_words(db):  # type: (BookDatabase) -> Element
     """ Create the words element, with all the words in the database """
     words = Element('words')
@@ -33,7 +31,6 @@ def export_words(db):  # type: (BookDatabase) -> Element
     return words
 
 
-@timeit
 def export_books(db):  # type: (BookDatabase) -> Element
     """ Create the books element, with all the books in the database """
     books = Element('books')
@@ -73,7 +70,6 @@ def export_books(db):  # type: (BookDatabase) -> Element
     return books
 
 
-@timeit
 def export_groups(db):  # type: (BookDatabase) -> Element
     """ Create the groups element, with all the groups in the database """
     groups = Element('groups')
@@ -92,7 +88,6 @@ def export_groups(db):  # type: (BookDatabase) -> Element
     return groups
 
 
-@timeit
 def export_phrases(db):  # type: (BookDatabase) -> Element
     """ Create the phrases element, with all the phrases in the database """
     phrases = Element('phrases')
@@ -111,7 +106,6 @@ def export_phrases(db):  # type: (BookDatabase) -> Element
     return phrases
 
 
-@timeit
 def build_xml(db):  # type: (BookDatabase) -> ElementTree
     """
     Create an ElementTree representation of the given books database.
@@ -131,7 +125,6 @@ def build_xml(db):  # type: (BookDatabase) -> ElementTree
     return ElementTree(root)
 
 
-@timeit
 def export_db(db, xml_path, prettify=False):
     """
     Export a given db to a XML file.

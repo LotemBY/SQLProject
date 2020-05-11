@@ -14,7 +14,7 @@ class PhraseTab(CustomTab):
     """
 
     # Event keys
-    class KEYS(Enum):
+    class EventKeys(Enum):
         PHRASE_INPUT = auto()
         ADD_PHRASE = auto()
         PHRASE_SELECTION = auto()
@@ -50,9 +50,9 @@ class PhraseTab(CustomTab):
             font=sgh.BIG_FONT_SIZE,
             text_color=sgh.INPUT_COLOR,
             enable_events=True,
-            key=PhraseTab.KEYS.PHRASE_INPUT
+            key=PhraseTab.EventKeys.PHRASE_INPUT
         )
-        add_phrase_button = sg.Ok("Insert", pad=(20, 1), size=(10, 1), key=PhraseTab.KEYS.ADD_PHRASE)
+        add_phrase_button = sg.Ok("Insert", pad=(20, 1), size=(10, 1), key=PhraseTab.EventKeys.ADD_PHRASE)
 
         search_phrase_txt = sg.Text(
             text="Phrase to be searched:",
@@ -69,7 +69,7 @@ class PhraseTab(CustomTab):
             text_color=sgh.DROP_DOWN_TEXT_COLOR,
             background_color=sgh.NO_BG,
             enable_events=True,
-            key=PhraseTab.KEYS.PHRASE_SELECTION
+            key=PhraseTab.EventKeys.PHRASE_SELECTION
         )
 
         self.phrase_input_error = sg.Text(
@@ -120,7 +120,7 @@ class PhraseTab(CustomTab):
             enable_events=True,
             select_mode=sg.SELECT_MODE_BROWSE,
             visible_column_map=[is_visible for _col_name, is_visible in headers],
-            key=PhraseTab.KEYS.PHRASE_APPR_TABLE
+            key=PhraseTab.EventKeys.PHRASE_APPR_TABLE
         )
 
         book_title = sg.Text(
@@ -165,10 +165,10 @@ class PhraseTab(CustomTab):
     @property
     def callbacks(self):
         return {
-            PhraseTab.KEYS.PHRASE_INPUT: self._clear_phrase_error,
-            PhraseTab.KEYS.ADD_PHRASE: self._add_phrase,
-            PhraseTab.KEYS.PHRASE_SELECTION: self._search_phrase,
-            PhraseTab.KEYS.PHRASE_APPR_TABLE: self._select_phrase_appr
+            PhraseTab.EventKeys.PHRASE_INPUT: self._clear_phrase_error,
+            PhraseTab.EventKeys.ADD_PHRASE: self._add_phrase,
+            PhraseTab.EventKeys.PHRASE_SELECTION: self._search_phrase,
+            PhraseTab.EventKeys.PHRASE_APPR_TABLE: self._select_phrase_appr
         }
 
     def handle_enter(self, focused_element):

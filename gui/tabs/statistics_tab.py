@@ -41,7 +41,7 @@ class StatisticsTab(CustomTab):
     )
 
     # Event keys
-    class KEYS(Enum):
+    class EventKeys(Enum):
         SELECT_BOOK = auto()
 
     def __init__(self, db):
@@ -99,7 +99,7 @@ class StatisticsTab(CustomTab):
             text_color=sgh.DROP_DOWN_TEXT_COLOR,
             background_color=sgh.NO_BG,
             enable_events=True,
-            key=StatisticsTab.KEYS.SELECT_BOOK
+            key=StatisticsTab.EventKeys.SELECT_BOOK
         )
 
         self.specific_statistics = []
@@ -150,7 +150,7 @@ class StatisticsTab(CustomTab):
     @property
     def callbacks(self):
         return {
-            StatisticsTab.KEYS.SELECT_BOOK: self._select_book,
+            StatisticsTab.EventKeys.SELECT_BOOK: self._select_book,
         }
 
     def _update_book_dropdown(self):

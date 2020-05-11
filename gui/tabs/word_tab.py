@@ -41,7 +41,7 @@ class WordTab(CustomTab):
     FILTER_UPDATE_SCHEDULE_TIME = 0.5
 
     # Event keys
-    class KEYS(Enum):
+    class EventKeys(Enum):
         UPDATE_FILTER = auto()
         SCHEDULE_UPDATE_FILTER = auto()
         CLEAR_FILTER = auto()
@@ -88,7 +88,7 @@ class WordTab(CustomTab):
             pad=(0, 1),
             enable_events=True,
             text_color=sgh.INPUT_COLOR,
-            key=WordTab.KEYS.SCHEDULE_UPDATE_FILTER
+            key=WordTab.EventKeys.SCHEDULE_UPDATE_FILTER
         )
 
         self.book_filter_dropdown = sg.Combo(
@@ -101,7 +101,7 @@ class WordTab(CustomTab):
             text_color=sgh.DROP_DOWN_TEXT_COLOR,
             font=sgh.SMALL_FONT_SIZE,
             background_color=sgh.NO_BG,
-            key=WordTab.KEYS.UPDATE_FILTER
+            key=WordTab.EventKeys.UPDATE_FILTER
         )
 
         self.group_filter_dropdown = sg.Combo(
@@ -114,10 +114,10 @@ class WordTab(CustomTab):
             text_color=sgh.DROP_DOWN_TEXT_COLOR,
             font=sgh.SMALL_FONT_SIZE,
             background_color=sgh.NO_BG,
-            key=WordTab.KEYS.UPDATE_FILTER
+            key=WordTab.EventKeys.UPDATE_FILTER
         )
 
-        info_button = sg.Help("?", size=(3, 1), pad=(10, 1), key=WordTab.KEYS.REGEX_HELP)
+        info_button = sg.Help("?", size=(3, 1), pad=(10, 1), key=WordTab.EventKeys.REGEX_HELP)
 
         def _create_int_input():
             """ Helper sub-function for creating an int input text """
@@ -128,7 +128,7 @@ class WordTab(CustomTab):
                 enable_events=True,
                 background_color=sgh.THEME["INPUT"],
                 text_color=sgh.INPUT_COLOR,
-                key=WordTab.KEYS.SCHEDULE_UPDATE_FILTER
+                key=WordTab.EventKeys.SCHEDULE_UPDATE_FILTER
             )
 
         line_filter = _create_int_input()
@@ -151,7 +151,7 @@ class WordTab(CustomTab):
             button_text="Clear Filter",
             size=(10, 1),
             pad=(30, 0),
-            key=WordTab.KEYS.CLEAR_FILTER
+            key=WordTab.EventKeys.CLEAR_FILTER
         )
 
         col1 = sg.Column(
@@ -207,7 +207,7 @@ class WordTab(CustomTab):
             enable_events=True,
             readonly=True,
             background_color=sgh.NO_BG,
-            key=WordTab.KEYS.WORDS_SORT
+            key=WordTab.EventKeys.WORDS_SORT
         )
 
         self.words_direction_dropdown = sg.Combo(
@@ -218,7 +218,7 @@ class WordTab(CustomTab):
             enable_events=True,
             readonly=True,
             background_color=sgh.NO_BG,
-            key=WordTab.KEYS.WORDS_DIRECTION
+            key=WordTab.EventKeys.WORDS_DIRECTION
         )
 
         self.words_counter_text = sg.Text("0 Results.", size=(15, 1), auto_size_text=False)
@@ -229,7 +229,7 @@ class WordTab(CustomTab):
             size=(20, 100),
             select_mode=sg.SELECT_MODE_SINGLE,
             enable_events=True,
-            key=WordTab.KEYS.WORDS_LIST
+            key=WordTab.EventKeys.WORDS_LIST
         )
 
         col = sg.Column(
@@ -269,7 +269,7 @@ class WordTab(CustomTab):
             enable_events=True,
             select_mode=sg.SELECT_MODE_BROWSE,
             visible_column_map=[is_visible for _col_name, is_visible in headers],
-            key=WordTab.KEYS.APPR_TABLE
+            key=WordTab.EventKeys.APPR_TABLE
         )
 
         book_title = sg.Text(
@@ -323,24 +323,15 @@ class WordTab(CustomTab):
     @property
     def callbacks(self):
         return {
-            WordTab.KEYS.UPDATE_FILTER: self._update_filter,
-            WordTab.KEYS.SCHEDULE_UPDATE_FILTER: self._schedule_filter_update,
-            WordTab.KEYS.CLEAR_FILTER: self._clear_filter,
-            WordTab.KEYS.REGEX_HELP: self._show_regex_help,
-            WordTab.KEYS.WORDS_SORT: self._update_words_sort_order,
-            WordTab.KEYS.WORDS_DIRECTION: self._update_words_sort_direction,
-            WordTab.KEYS.WORDS_LIST: self._select_word,
-            WordTab.KEYS.APPR_TABLE: self._select_word_appr
+            WordTab.EventKeys.UPDATE_FILTER: self._update_filter,
+            WordTab.EventKeys.SCHEDULE_UPDATE_FILTER: self._schedule_filter_update,
+            WordTab.EventKeys.CLEAR_FILTER: self._clear_filter,
+            WordTab.EventKeys.REGEX_HELP: self._show_regex_help,
+            WordTab.EventKeys.WORDS_SORT: self._update_words_sort_order,
+            WordTab.EventKeys.WORDS_DIRECTION: self._update_words_sort_direction,
+            WordTab.EventKeys.WORDS_LIST: self._select_word,
+            WordTab.EventKeys.APPR_TABLE: self._select_word_appr
         }
-
-    def handle_event(self, event):
-        # TODO: this is ugly
-        if str(event).startswith("KEYS.UPDATE_FILTER"):
-            event = WordTab.KEYS.UPDATE_FILTER
-        if str(event).startswith("KEYS.SCHEDULE_UPDATE_FILTER"):
-            event = WordTab.KEYS.SCHEDULE_UPDATE_FILTER
-
-        super().handle_event(event)
 
     @staticmethod
     def _show_regex_help():
@@ -380,9 +371,6 @@ class WordTab(CustomTab):
 
     def _group_word_insertion_callback(self, group_id):
         """ Handle the insertion of a word to a group """
-        # TODO: this
-        # import time
-        # time.sleep(10)
         # If the group filter contains the group_id, we need to update the words list
         if self.words_filters["group_id"] in (group_id, "%"):
             self._update_words_list()
@@ -396,7 +384,7 @@ class WordTab(CustomTab):
     def _trigger_filter_update_event(self):
         """ Use PySimpleGUI internals to send an UPDATE_FILTER event to the window """
         window = self.ParentForm
-        window.LastButtonClicked = WordTab.KEYS.UPDATE_FILTER
+        window.LastButtonClicked = WordTab.EventKeys.UPDATE_FILTER
         window.FormRemainedOpen = True
         if window.CurrentlyRunningMainloop:
             window.TKroot.quit()

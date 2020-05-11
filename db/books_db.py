@@ -1,15 +1,13 @@
 import functools
 import os
 import re
-from threading import Thread
 
 import db.sql_queries as queries
 from db.db_manager import Database
 from db.exceptions import CheckError
 from db.query_builder import build_query
 from utils.book_parser import parse_book
-from utils.constants import VALID_WORD_REGEX, VALID_WORD_LETTERS, DATE_FORMAT
-from utils.utils import timeit
+from utils.constants import VALID_WORD_REGEX, DATE_FORMAT
 
 
 class BookDatabase(Database):
@@ -79,8 +77,7 @@ class BookDatabase(Database):
         :param args: The arguments to pass
         """
         for callback in callbacks:
-            # TODO: this doesnt work
-            Thread(callback(*args)).start()
+            callback(*args)
 
     #
     # String Functions
@@ -146,14 +143,14 @@ class BookDatabase(Database):
         :param word: The word string to insert. Assumed to be a valid single word.
         :return: The word id of the newly inserted word
         """
-        return self.execute(queries.INSERT_WORD, (word,)).lastrowid
+        return self.execute(queries.INSERT_WORD, (word, len(word))).lastrowid
 
     def insert_many_words(self, words):
         """
         Insert many words to the database (only those who doesn't exists already).
         :param words: Iterable of words to be inserted
         """
-        self.executemany(queries.INSERT_WORD, ((word,) for word in words))
+        self.executemany(queries.INSERT_WORD, ((word, len(word)) for word in words))
 
     def insert_many_words_with_id(self, words_with_ids):
         """
@@ -269,7 +266,6 @@ class BookDatabase(Database):
     # Advanced Insertion Functions
     #
 
-    @timeit
     def add_book(self, title, author, path, date):
         """
         Add a new book in the database.
@@ -303,8 +299,6 @@ class BookDatabase(Database):
 
         # Call the book insert callbacks
         self.call_all_callbacks(self.book_insert_callbacks)
-
-        print(self.get_word_id.cache_info())
         return book_id
 
     def add_phrase(self, phrase):
@@ -315,7 +309,7 @@ class BookDatabase(Database):
         """
 
         # Split to single valid words
-        words = [self.to_single_word(word) for word in re.findall(rf"\b{VALID_WORD_LETTERS}+\b", phrase)]
+        words = [self.to_single_word(match[0]) for match in re.finditer(VALID_WORD_REGEX, phrase)]
 
         # Insert the phrase
         phrase_id = self.insert_phrase(phrase, len(words))

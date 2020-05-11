@@ -19,7 +19,7 @@ class BookTab(CustomTab):
     """
 
     # Event keys
-    class KEYS(Enum):
+    class EventKeys(Enum):
         FILE_INPUT = auto()
         INSERT_BOOK = auto()
         UPDATE_FILTER = auto()
@@ -42,7 +42,7 @@ class BookTab(CustomTab):
         ])
 
     def _create_book_form_frame(self):
-        self.file_input = sg.InputText(enable_events=True, key=BookTab.KEYS.FILE_INPUT)
+        self.file_input = sg.InputText(enable_events=True, key=BookTab.EventKeys.FILE_INPUT)
         browse_button = sg.FileBrowse(file_types=(("Text files", "*.txt"), ("All Files", "*")))
         self.title_input = sg.InputText()
         self.author_input = sg.InputText()
@@ -51,7 +51,7 @@ class BookTab(CustomTab):
 
         self.file_size_text = sg.Text("File size: None", auto_size_text=False)
 
-        insert_book_button = sg.Ok("Insert Book", key=BookTab.KEYS.INSERT_BOOK, size=(20, 0))
+        insert_book_button = sg.Ok("Insert Book", key=BookTab.EventKeys.INSERT_BOOK, size=(20, 0))
         self.error_text = sg.Text("", text_color=sgh.ERROR_TEXT_COLOR, auto_size_text=False)
 
         frame = sg.Frame(
@@ -74,7 +74,7 @@ class BookTab(CustomTab):
                 default_text="",
                 size=(20, 1),
                 enable_events=True,
-                key=BookTab.KEYS.UPDATE_FILTER
+                key=BookTab.EventKeys.UPDATE_FILTER
             )
 
         row = []
@@ -96,10 +96,10 @@ class BookTab(CustomTab):
             auto_size_columns=False,
             enable_events=True,
             visible_column_map=[False, True, True, True, True, True],
-            key=BookTab.KEYS.BOOKS_TABLE
+            key=BookTab.EventKeys.BOOKS_TABLE
         )
 
-        open_book_button = sg.Button("Open Selected Book", key=BookTab.KEYS.OPEN_BOOK)
+        open_book_button = sg.Button("Open Selected Book", key=BookTab.EventKeys.OPEN_BOOK)
 
         frame = sg.Frame(
             title="",
@@ -131,18 +131,12 @@ class BookTab(CustomTab):
     @property
     def callbacks(self):
         return {
-            BookTab.KEYS.FILE_INPUT: self._load_file_input,
-            BookTab.KEYS.INSERT_BOOK: self._insert_book,
-            BookTab.KEYS.UPDATE_FILTER: self._update_books_filter,
-            BookTab.KEYS.BOOKS_TABLE: self._select_book,
-            BookTab.KEYS.OPEN_BOOK: self._open_book_file
+            BookTab.EventKeys.FILE_INPUT: self._load_file_input,
+            BookTab.EventKeys.INSERT_BOOK: self._insert_book,
+            BookTab.EventKeys.UPDATE_FILTER: self._update_books_filter,
+            BookTab.EventKeys.BOOKS_TABLE: self._select_book,
+            BookTab.EventKeys.OPEN_BOOK: self._open_book_file
         }
-
-    def handle_event(self, event):
-        if str(event).startswith("KEYS.UPDATE_FILTER"):
-            event = BookTab.KEYS.UPDATE_FILTER
-
-        super().handle_event(event)
 
     def _load_file_input(self):
         """ Try to load the input file as it is being typed """
