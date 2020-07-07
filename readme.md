@@ -1,5 +1,5 @@
 # Books Database
-An SQL Project for University, written in python3 using:
+SQL Project for University, written in python3 using:
 * sqlite3
 * PySimpleGUI
 * Tkinter
