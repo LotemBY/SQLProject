@@ -1,5 +1,5 @@
 # Books Database
-An SQL Project for University, written in python3 using 	
+An SQL Project for University, written in python3 using:
 * sqlite3
 * PySimpleGUI
 * Tkinter
@@ -26,3 +26,10 @@ An SQL Project for University, written in python3 using
 
 ### Statistics
 <img src="/screenshots/statistics.png" width="700">
+
+## Schemes
+### Entity relationship diagram
+<img src="/screenshots/scheme.png" width="700">
+
+### XML format
+<img src="/screenshots/xml.png" width="700">
