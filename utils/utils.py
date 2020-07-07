@@ -79,18 +79,18 @@ def file_size_to_str(file_size, ndigits=2):
     return f"{float_to_str(size_in_units, ndigits)} {FILE_SIZES[biggest_power]}"
 
 
-def timeit(method):
+def timeit(func):
     """
     Decorator for printing the execution time of a function.
     Used for debugging purposes, for performance improvements.
-    :param method: The method to decorate
+    :param func: The method to decorate
     :return: Decorated function
     """
-    def timed(*args, **kw):
-        ts = time.time()
-        result = method(*args, **kw)
-        te = time.time()
-        print('%r  %2.2f ms' % (method.__name__, (te - ts) * 1000))
+    def timed(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        print('%r %2.2f ms' % (func.__name__, (end_time - start_time) * 1000))
         return result
 
     return timed

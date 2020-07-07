@@ -1,3 +1,5 @@
+.idea/
 /unused/*
+__pycache__/
 *.db
 *.db-journal
