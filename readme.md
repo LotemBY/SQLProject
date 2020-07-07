@@ -1,5 +1,5 @@
 # Books Database
-An SQL Project for University, written in python3, using 	
+An SQL Project for University, written in python3 using 	
 * sqlite3
 * PySimpleGUI
 * Tkinter
@@ -15,14 +15,14 @@ An SQL Project for University, written in python3, using
 * Import and export the database to XML
 
 ## Screenshots
-### Insert and filter books
-<img src="/screenshots/books.png" width="400">
-
 ### Filter words
-<img src="/screenshots/words.png" width="400">
+<img src="/screenshots/words.png" width="700">
+
+### Insert and filter books
+<img src="/screenshots/books.png" width="700">
 
 ### Search phrases
-<img src="/screenshots/phrases.png" width="400">
+<img src="/screenshots/phrases.png" width="700">
 
 ### Statistics
-<img src="/screenshots/statistics.png" width="400">
+<img src="/screenshots/statistics.png" width="700">
